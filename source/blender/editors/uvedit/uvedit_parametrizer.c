@@ -3158,7 +3158,7 @@ static void p_chart_lscm_load_solution(PChart *chart)
 
 static void p_chart_lscm_begin(PChart *chart, PBool live, PBool abf)
 {
-  PVert *v, *pin1, *pin2;
+  PVert *v, *pin1, *pin2, *single_pin;
   PBool select = P_FALSE, deselect = P_FALSE;
   int npins = 0, id = 0;
 
@@ -3166,6 +3166,7 @@ static void p_chart_lscm_begin(PChart *chart, PBool live, PBool abf)
   for (v = chart->verts; v; v = v->nextlink) {
     if (v->flag & PVERT_PIN) {
       npins++;
+      single_pin = v;
       if (v->flag & PVERT_SELECT) {
         select = P_TRUE;
       }
@@ -3176,7 +3177,7 @@ static void p_chart_lscm_begin(PChart *chart, PBool live, PBool abf)
     }
   }
 
-  if ((live && (!select || !deselect)) || (npins == 1)) {
+  if ((live && (!select || !deselect))) {
     chart->u.lscm.context = NULL;
   }
   else {
@@ -3191,8 +3192,8 @@ static void p_chart_lscm_begin(PChart *chart, PBool live, PBool abf)
       }
     }
 
-    if (npins <= 1) {
-      /* not enough pins, lets find some ourself */
+    if (npins == 0) {
+      /* no pins, lets find some ourself */
       PEdge *outer;
 
       p_chart_boundaries(chart, NULL, &outer);
@@ -3204,6 +3205,26 @@ static void p_chart_lscm_begin(PChart *chart, PBool live, PBool abf)
 
       chart->u.lscm.pin1 = pin1;
       chart->u.lscm.pin2 = pin2;
+    }
+    else if (npins == 1) {
+      /* only 1 pin, find another one*/
+      chart->u.lscm.pin1 = single_pin;
+
+      p_chart_extrema_verts(chart, &pin1, &pin2);
+
+      /* pin whichever is farther from single_pin*/
+      float d1[3], d2[3];
+      for (int i = 0; i < 3; i++) {
+        d1[i] = pin1->co[i] - single_pin->co[i];
+        d2[i] = pin2->co[i] - single_pin->co[i];
+      }
+      if (d1[0] * d1[0] + d1[1] * d1[1] + d1[2] * d1[2] <
+          d2[0] * d2[0] + d2[1] * d2[1] + d2[2] * d2[2]) {
+        chart->u.lscm.pin2 = pin2;
+      }
+      else {
+        chart->u.lscm.pin2 = pin1;
+      }
     }
 
     for (v = chart->verts; v; v = v->nextlink) {
